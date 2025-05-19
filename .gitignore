@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+*.log
+.DS_Store
+breast_cancer_model.h5
+Breast.keras
+
+# Large model files
+*.h5
+*.keras
+*.pb
+*.ckpt
+model/
+saved_models/
+checkpoints/
+
+# Data directories
+data/
+datasets/
+images/
+*.jpg
+*.jpeg
+*.png
+*.gif

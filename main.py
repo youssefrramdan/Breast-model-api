@@ -75,9 +75,14 @@ async def info():
         "classes": class_names,
         "endpoints": {
             "/predict": "POST - Provide image URL to classify",
-            "/info": "GET - Get information about this API"
+            "/info": "GET - Get information about this API",
+            "/ping": "GET - Health check endpoint"
         },
     }
+
+@app.get("/ping")
+async def ping():
+    return {"status": "ok", "model": "breast"}
 
 # For running locally or on Render
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Body
 from fastapi.responses import JSONResponse
 from PIL import Image
 import numpy as np
@@ -7,6 +7,7 @@ import requests
 from io import BytesIO
 import time
 import os
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -20,6 +21,9 @@ output_details = interpreter.get_output_details()
 
 class_names = ["benign", "malignant"]
 
+class ImageRequest(BaseModel):
+    image_url: str
+
 def preprocess_image(image: Image.Image):
     img = image.convert("RGB").resize((224, 224))
     arr = np.array(img) / 255.0
@@ -27,12 +31,12 @@ def preprocess_image(image: Image.Image):
     return arr
 
 @app.post("/predict")
-async def predict(image_url: str = Query(..., description="Direct image URL")):
+async def predict(request: ImageRequest):
     total_start = time.time()
 
     # Step 1: Download image
     download_start = time.time()
-    response = requests.get(image_url, timeout=10)
+    response = requests.get(request.image_url, timeout=10)
     content_type = response.headers.get("Content-Type", "")
     if not content_type.startswith("image/"):
         return JSONResponse(status_code=400, content={"error": f"Invalid content type: {content_type}"})

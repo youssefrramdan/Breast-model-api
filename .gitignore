@@ -1,14 +1,29 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
 .env
 .venv
 env/
 venv/
 ENV/
-*.log
+dist/
+build/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
 .DS_Store
-breast_cancer_model.h5
+Thumbs.db
+
+# Large files
 Breast.keras
 
 # Large model files

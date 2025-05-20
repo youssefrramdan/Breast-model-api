@@ -89,6 +89,9 @@ def predict():
         # Get prediction
         predictions = interpreter.get_tensor(output_details[0]['index'])
 
+        # **طباعة القيم الخام من النموذج للمتابعة**
+        logger.info(f"Raw model output: {predictions[0]}")
+
         # Get predicted class and confidence
         predicted_class = CLASS_NAMES[np.argmax(predictions[0])]
         confidence = float(np.max(predictions[0]))

@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Global variables
-MODEL_PATH = 'Breast_model_optimized.tflite'
-CLASS_NAMES = ["benign", "malignant"]  # Update with your actual class names
+MODEL_PATH = 'Breast_model_optimized.tflite'  # Using the optimized TFLite model
+CLASS_NAMES = ["benign", "malignant", "normal"]
 INPUT_SIZE = 224
 
 # Load TFLite model
@@ -25,12 +25,6 @@ try:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
     logger.info("Model loaded successfully")
-
-    # Get input quantization parameters if model is quantized
-    input_scale = input_details[0]['quantization_parameters']['scale'] if input_details[0]['dtype'] == np.uint8 else None
-    input_zero_point = input_details[0]['quantization_parameters']['zero_point'] if input_details[0]['dtype'] == np.uint8 else None
-    is_quantized = input_details[0]['dtype'] == np.uint8
-
 except Exception as e:
     logger.error(f"Failed to load model: {str(e)}")
     raise
@@ -50,11 +44,6 @@ def preprocess_image(image: Image.Image) -> np.ndarray:
 
     # Add batch dimension
     img_array = np.expand_dims(img_array, axis=0)
-
-    # Quantize if model is quantized
-    if is_quantized:
-        img_array = img_array / input_scale + input_zero_point
-        img_array = img_array.astype(np.uint8)
 
     return img_array
 
@@ -99,11 +88,6 @@ def predict():
 
         # Get prediction
         predictions = interpreter.get_tensor(output_details[0]['index'])
-
-        # If quantized, dequantize outputs
-        if is_quantized:
-            scale, zero_point = output_details[0]['quantization_parameters']['scale'], output_details[0]['quantization_parameters']['zero_point']
-            predictions = (predictions.astype(np.float32) - zero_point) * scale
 
         # Get predicted class and confidence
         predicted_class = CLASS_NAMES[np.argmax(predictions[0])]

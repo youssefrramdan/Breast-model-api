@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query, Body
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import numpy as np
 import tflite_runtime.interpreter as tflite
@@ -13,6 +14,15 @@ app = FastAPI(
     title="Breast Cancer Classification API",
     description="API for classifying breast cancer using histopathological images",
     version="1.0.0"
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Load optimized TFLite model (quantized for better performance and smaller size)

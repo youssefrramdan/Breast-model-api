@@ -1,118 +1,115 @@
-import numpy as np
-import tensorflow as tf
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+import tensorflow as tf
+import numpy as np
+import os
 from PIL import Image
 import io
-import time
 import logging
-import os
 
-# Configure logging
+# إعداد التسجيل
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)  # السماح بطلبات من مصادر مختلفة
 
-# Global variables
-MODEL_PATH = 'Breast.keras'  # Using the original Keras model
-CLASS_NAMES = ["benign", "malignant", "normal"]
-INPUT_SIZE = 224
+# تحميل النموذج المدرب
+MODEL_PATH = 'Breast.keras'
 
-# Load TensorFlow model
-try:
-    model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    logger.info("Model loaded successfully")
-except Exception as e:
-    logger.error(f"Failed to load model: {str(e)}")
-    raise
+# التحقق من وجود النموذج
+if not os.path.exists(MODEL_PATH):
+    logger.error(f"ملف النموذج غير موجود: {MODEL_PATH}")
+    model = None
+else:
+    try:
+        logger.info("جاري تحميل النموذج...")
+        model = tf.keras.models.load_model(MODEL_PATH)
+        logger.info("تم تحميل النموذج بنجاح")
+    except Exception as e:
+        logger.error(f"خطأ في تحميل النموذج: {str(e)}")
+        model = None
 
-def preprocess_image(image: Image.Image) -> np.ndarray:
-    """Preprocess image for model input"""
-    # Resize image
-    image = image.resize((INPUT_SIZE, INPUT_SIZE))
+# حجم الصورة الذي يتوقعه النموذج
+# قد تحتاج لتعديل هذه القيم حسب ما تم تدريب النموذج عليه
+IMG_SIZE = (224, 224)
 
-    # Convert to RGB if needed
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
+def preprocess_image(image):
+    """
+    معالجة الصورة لتكون جاهزة للنموذج
+    """
+    # تحويل الصورة إلى الحجم المطلوب
+    image = image.resize(IMG_SIZE)
 
-    # Convert to numpy array and normalize
-    img_array = np.array(image, dtype=np.float32)
-    img_array = img_array / 255.0
+    # تحويل الصورة إلى مصفوفة
+    img_array = np.array(image)
 
-    # Add batch dimension
+    # التأكد من أن الصورة بتنسيق RGB
+    if len(img_array.shape) == 2:  # صورة بالأبيض والأسود
+        img_array = np.stack((img_array,) * 3, axis=-1)
+
+    # إعادة تشكيل المصفوفة لتناسب مدخلات النموذج [1, height, width, channels]
     img_array = np.expand_dims(img_array, axis=0)
 
-    return img_array
+    # تطبيع البيانات (بين 0 و 1)
+    img_array = img_array / 255.0
 
-@app.route('/')
-def home():
-    """Root endpoint"""
-    return jsonify({
-        "message": "Breast Cancer Classification API",
-        "status": "active",
-        "supported_classes": CLASS_NAMES
-    })
+    return img_array
 
 @app.route('/predict', methods=['POST'])
 def predict():
     """
-    Predict tumor class from breast image
+    نقطة نهاية API للتنبؤ باستخدام النموذج
     """
+    # التحقق من وجود ملف صورة في الطلب
+    if 'image' not in request.files:
+        return jsonify({'error': 'لا توجد صورة في الطلب'}), 400
+
+    image_file = request.files['image']
+
     try:
-        # Check if file is present in request
-        if 'file' not in request.files:
-            return jsonify({"error": "No file provided"}), 400
+        # فتح الصورة
+        image = Image.open(io.BytesIO(image_file.read()))
 
-        file = request.files['file']
-
-        # Validate file type
-        if not file.content_type.startswith('image/'):
-            return jsonify({"error": "File must be an image"}), 400
-
-        # Read and preprocess image
-        image_data = file.read()
-        image = Image.open(io.BytesIO(image_data))
+        # معالجة الصورة
         processed_image = preprocess_image(image)
 
-        # Make prediction
-        pred_start = time.time()
+        # إجراء التنبؤ
+        prediction = model.predict(processed_image)
 
-        # Get predictions using TensorFlow model
-        predictions = model.predict(processed_image)
+        # تفسير النتيجة
+        if prediction.shape[1] == 1:
+            probability = float(prediction[0][0])
+            result = {
+                'prediction': 'سرطاني' if probability > 0.5 else 'غير سرطاني',
+                'probability': probability
+            }
+        else:
+            class_index = np.argmax(prediction[0])
+            probability = float(prediction[0][class_index])
+            classes = ["benign", "malignant", "normal"]
+            result = {
+                'prediction': classes[class_index],
+                'probability': probability
+            }
 
-        # Log raw predictions for monitoring
-        logger.info(f"Raw model output: {predictions[0]}")
-
-        # Get predicted class and confidence
-        predicted_class = CLASS_NAMES[np.argmax(predictions[0])]
-        confidence = float(np.max(predictions[0]))
-
-        # Calculate prediction time
-        pred_time = time.time() - pred_start
-
-        # Log prediction details
-        logger.info(f"Prediction: {predicted_class}, Confidence: {confidence:.4f}, Time: {pred_time:.4f}s")
-
-        return jsonify({
-            "class": predicted_class,
-            "confidence": confidence,
-            "predictions": {class_name: float(pred) for class_name, pred in zip(CLASS_NAMES, predictions[0])},
-            "processing_time": pred_time
-        })
+        return jsonify(result)
 
     except Exception as e:
-        logger.error(f"Prediction error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"خطأ في المعالجة: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/health')
-def health():
-    """Health check endpoint"""
-    return jsonify({
-        "status": "healthy",
-        "model": "breast_cancer_classifier"
-    })
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    نقطة نهاية للتحقق من حالة API
+    """
+    health_status = {
+        'status': 'up' if model is not None else 'down',
+        'model_loaded': model is not None
+    }
+    return jsonify(health_status)
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

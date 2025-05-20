@@ -1,9 +1,8 @@
 # إضافة هذه المكتبات إلى ملف requirements.txt
-flask==3.0.2
-flask-cors==4.0.0
+fastapi==0.110.0
+uvicorn==0.27.1
+python-multipart==0.0.9
 tensorflow==2.15.0
 numpy==1.26.4
 Pillow==10.2.0
-gunicorn==21.2.0
 pytest==7.4.0
-werkzeug==2.0.3

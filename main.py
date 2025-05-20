@@ -1,18 +1,27 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 import tensorflow as tf
 import numpy as np
 import os
 from PIL import Image
 import io
 import logging
+from typing import Dict, Any
 
 # إعداد التسجيل
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-CORS(app)  # السماح بطلبات من مصادر مختلفة
+app = FastAPI()
+
+# إعداد CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # يسمح بجميع المصادر
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # تحميل النموذج المدرب
 MODEL_PATH = 'Breast.keras'
@@ -31,7 +40,6 @@ else:
         model = None
 
 # حجم الصورة الذي يتوقعه النموذج
-# قد تحتاج لتعديل هذه القيم حسب ما تم تدريب النموذج عليه
 IMG_SIZE = (224, 224)
 
 def preprocess_image(image):
@@ -56,20 +64,15 @@ def preprocess_image(image):
 
     return img_array
 
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.post("/predict")
+async def predict(image: UploadFile = File(...)) -> Dict[str, Any]:
     """
     نقطة نهاية API للتنبؤ باستخدام النموذج
     """
-    # التحقق من وجود ملف صورة في الطلب
-    if 'image' not in request.files:
-        return jsonify({'error': 'لا توجد صورة في الطلب'}), 400
-
-    image_file = request.files['image']
-
     try:
-        # فتح الصورة
-        image = Image.open(io.BytesIO(image_file.read()))
+        # قراءة الصورة
+        contents = await image.read()
+        image = Image.open(io.BytesIO(contents))
 
         # معالجة الصورة
         processed_image = preprocess_image(image)
@@ -93,14 +96,14 @@ def predict():
                 'probability': probability
             }
 
-        return jsonify(result)
+        return result
 
     except Exception as e:
         logger.error(f"خطأ في المعالجة: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return {"error": str(e)}
 
-@app.route('/health', methods=['GET'])
-def health_check():
+@app.get("/health")
+async def health_check() -> Dict[str, Any]:
     """
     نقطة نهاية للتحقق من حالة API
     """
@@ -108,8 +111,9 @@ def health_check():
         'status': 'up' if model is not None else 'down',
         'model_loaded': model is not None
     }
-    return jsonify(health_status)
+    return health_status
 
 if __name__ == '__main__':
+    import uvicorn
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    uvicorn.run(app, host='0.0.0.0', port=port)

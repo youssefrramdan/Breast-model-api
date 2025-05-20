@@ -24,11 +24,11 @@ build/
 Thumbs.db
 
 # Large files
-Breast.keras
+# Breast.keras
 
 # Large model files
 *.h5
-*.keras
+# *.keras
 *.pb
 *.ckpt
 model/

@@ -1,5 +1,5 @@
 import numpy as np
-import tflite_runtime.interpreter as tflite
+import tensorflow as tf
 from flask import Flask, request, jsonify
 from PIL import Image
 import io
@@ -14,16 +14,13 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # Global variables
-MODEL_PATH = 'Breast_model_optimized.tflite'  # Using the optimized TFLite model
+MODEL_PATH = 'Breast.keras'  # Using the original Keras model
 CLASS_NAMES = ["benign", "malignant", "normal"]
 INPUT_SIZE = 224
 
-# Load TFLite model
+# Load TensorFlow model
 try:
-    interpreter = tflite.Interpreter(model_path=MODEL_PATH)
-    interpreter.allocate_tensors()
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
+    model = tf.keras.models.load_model(MODEL_PATH)
     logger.info("Model loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load model: {str(e)}")
@@ -80,16 +77,10 @@ def predict():
         # Make prediction
         pred_start = time.time()
 
-        # Set input tensor
-        interpreter.set_tensor(input_details[0]['index'], processed_image)
+        # Get predictions using TensorFlow model
+        predictions = model.predict(processed_image)
 
-        # Run inference
-        interpreter.invoke()
-
-        # Get prediction
-        predictions = interpreter.get_tensor(output_details[0]['index'])
-
-        # **طباعة القيم الخام من النموذج للمتابعة**
+        # Log raw predictions for monitoring
         logger.info(f"Raw model output: {predictions[0]}")
 
         # Get predicted class and confidence
